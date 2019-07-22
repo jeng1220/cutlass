@@ -44,6 +44,7 @@
 
 // Standard Library includes
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <vector>
 #include <sys/time.h>
@@ -65,6 +66,19 @@
 #include "epilogue_tanh.h"
 #pragma warning( disable : 4503)
 
+struct ShapeWrapper {
+  int d_;
+  int h_;
+  int w_;
+  ShapeWrapper(int D, int H, int W): d_(D), h_(H), w_(W) {}
+  friend std::ostream& operator<<(std::ostream& out, const ShapeWrapper& x);
+};
+
+std::ostream& operator<<(std::ostream& out, const ShapeWrapper& x) {
+  out << "Shape<" << std::setw(3) << x.d_ << ", " << std::setw(3) << x.h_ << ", " << std::setw(3) << x.w_ << ">";
+  return out;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // This function defines a CUTLASS GEMM kernel instantiation, constructs its parameters object,
@@ -73,6 +87,10 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Define a CUTLASS GEMM template and launch a GEMM kernel.
+template <
+  typename OutputTile_,
+  typename ThreadGemmShape_
+>
 cudaError_t CutlassSgemmNN(
   int M,
   int N,
@@ -101,9 +119,9 @@ cudaError_t CutlassSgemmNN(
   typedef cutlass::gemm::SgemmTraits<
     cutlass::MatrixLayout::kColumnMajor,   // layout of A matrix
     cutlass::MatrixLayout::kColumnMajor,   // layout of B matrix
-    cutlass::Shape<8, 128, 128>,           // threadblock tile size
+    OutputTile_,           // threadblock tile size
     cutlass::gemm::LinearScalingTanh<float>,
-    cutlass::Shape<8, 8, 8>
+    ThreadGemmShape_
   >
     GemmTraits;
 
@@ -153,7 +171,10 @@ cudaError_t CutlassSgemmNN(
   cudaStreamSynchronize(0);
   gettimeofday(&end, nullptr);
   diff = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
-  std::cout << "CUTLASS costs :" << diff << std::endl;
+
+  ShapeWrapper block_shape(OutputTile_::kD, OutputTile_::kH, OutputTile_::kW);
+  ShapeWrapper thread_shape(ThreadGemmShape_::kD, ThreadGemmShape_::kH, ThreadGemmShape_::kW);
+  std::cout << "CUTLASS-block" << block_shape << "-thread" << thread_shape << " costs : "<< diff << std::endl;
 
   // Return any errors associated with the launch or cudaSuccess if no error.
   return cudaGetLastError();
@@ -414,7 +435,13 @@ cudaError_t TestCutlassGemm(int M, int N, int K, float alpha, float beta) {
   // Launch CUTLASS GEMM.
   //
 
-  result = CutlassSgemmNN(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<8, 128, 128>, cutlass::Shape<8, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<8,  64, 128>, cutlass::Shape<8, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<8,  64, 128>, cutlass::Shape<4, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<4,  64, 128>, cutlass::Shape<4, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<4,  32, 128>, cutlass::Shape<4, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<4,  32, 128>, cutlass::Shape<4, 4, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<4,  64,  64>, cutlass::Shape<4, 4, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);  
 
   if (result != cudaSuccess) {
     std::cerr << "CUTLASS GEMM kernel failed: "
