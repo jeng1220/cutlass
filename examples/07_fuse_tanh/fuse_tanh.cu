@@ -160,6 +160,13 @@ cudaError_t CutlassSgemmNN(
     return cudaErrorInvalidValue;
   }
 
+  // warm-up
+  for (int i = 0; i < 50; ++i) {
+    // Launch the CUTLASS GEMM kernel.
+    Gemm::launch(params);
+  }
+  cudaStreamSynchronize(0);
+
   unsigned long diff;
   struct timeval start;
   struct timeval end;
@@ -330,7 +337,16 @@ cudaError_t ReferenceGemm(
   cublasStatus_t status;
   status = cublasCreate(&handle);
   CUBLAS_CHECK(status);
-  
+
+  // warm-up
+  for (int i = 0; i < 50; ++i) {
+    status = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, K, &alpha, A,
+      lda, B, ldb, &beta, C, ldc);
+    CUBLAS_CHECK(status);
+    thrust::device_ptr<float> c = thrust::device_pointer_cast(C);
+    thrust::transform(c, c + N * M, c, tanh_functor());
+  }
+
   gettimeofday(&start, nullptr);
   for (int i = 0; i < 10; ++i) {
     status = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, K, &alpha, A,
