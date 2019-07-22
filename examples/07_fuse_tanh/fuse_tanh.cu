@@ -174,7 +174,7 @@ cudaError_t CutlassSgemmNN(
 
   ShapeWrapper block_shape(OutputTile_::kD, OutputTile_::kH, OutputTile_::kW);
   ShapeWrapper thread_shape(ThreadGemmShape_::kD, ThreadGemmShape_::kH, ThreadGemmShape_::kW);
-  std::cout << "CUTLASS-block" << block_shape << "-thread" << thread_shape << " costs : "<< diff << std::endl;
+  std::cout << "CUTLASS-block" << block_shape << "-thread" << thread_shape << " costs: "<< diff << std::endl;
 
   // Return any errors associated with the launch or cudaSuccess if no error.
   return cudaGetLastError();
