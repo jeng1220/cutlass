@@ -36,3 +36,4 @@ cutlass_add_executable(
   07_fuse_tanh
   ${EXAMPLES_BASIC_CUTLASS_GEMM_SOURCES}
 )
+target_link_libraries(07_fuse_tanh ${CUBLAS_LIBRARY})

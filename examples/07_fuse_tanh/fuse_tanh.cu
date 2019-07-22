@@ -46,7 +46,13 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
-
+#include <sys/time.h>
+#include <unistd.h>
+#include <cublas_v2.h>
+#include <thrust/device_ptr.h>
+#include <thrust/device_vector.h>
+#include <thrust/transform.h>
+#include <thrust/functional.h>
 //
 // CUTLASS includes needed for single-precision GEMM kernel
 //
@@ -96,7 +102,8 @@ cudaError_t CutlassSgemmNN(
     cutlass::MatrixLayout::kColumnMajor,   // layout of A matrix
     cutlass::MatrixLayout::kColumnMajor,   // layout of B matrix
     cutlass::Shape<8, 128, 128>,           // threadblock tile size
-    cutlass::gemm::LinearScalingTanh<float>
+    cutlass::gemm::LinearScalingTanh<float>,
+    cutlass::Shape<8, 8, 8>
   >
     GemmTraits;
 
@@ -135,8 +142,18 @@ cudaError_t CutlassSgemmNN(
     return cudaErrorInvalidValue;
   }
 
-  // Launch the CUTLASS GEMM kernel.
-  Gemm::launch(params);
+  unsigned long diff;
+  struct timeval start;
+  struct timeval end;
+  gettimeofday(&start, nullptr);
+  for (int i = 0; i < 10; ++i) {
+    // Launch the CUTLASS GEMM kernel.
+    Gemm::launch(params);
+  }
+  cudaStreamSynchronize(0);
+  gettimeofday(&end, nullptr);
+  diff = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
+  std::cout << "CUTLASS costs :" << diff << std::endl;
 
   // Return any errors associated with the launch or cudaSuccess if no error.
   return cudaGetLastError();
@@ -254,6 +271,22 @@ __global__ void ReferenceGemm_kernel(
   }
 }
 
+#define CUBLAS_CHECK(e) \
+do { \
+  if (e != CUBLAS_STATUS_SUCCESS) { \
+    std::cerr << "cublas error" << std::endl; \
+  } \
+} while(0)
+
+struct tanh_functor
+{
+  tanh_functor() {}
+  __host__ __device__
+  float operator()(const float& x) const {
+    return tanh(x);
+  }
+};
+
 /// Reference GEMM computation.
 cudaError_t ReferenceGemm(
   int M,
@@ -268,6 +301,30 @@ cudaError_t ReferenceGemm(
   float *C,
   int ldc) {
 
+  unsigned long diff;
+  struct timeval start;
+  struct timeval end;
+
+  cublasHandle_t handle;
+  cublasStatus_t status;
+  status = cublasCreate(&handle);
+  CUBLAS_CHECK(status);
+  
+  gettimeofday(&start, nullptr);
+  for (int i = 0; i < 10; ++i) {
+    status = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, M, N, K, &alpha, A,
+      lda, B, ldb, &beta, C, ldc);
+    CUBLAS_CHECK(status);
+    thrust::device_ptr<float> c = thrust::device_pointer_cast(C);
+    thrust::transform(c, c + N * M, c, tanh_functor());
+  }
+  gettimeofday(&end, nullptr);
+  diff = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
+  std::cout << "cuBLAS + Thrust costs :" << diff << std::endl;
+
+  status = cublasDestroy(handle);
+  CUBLAS_CHECK(status);
+  /*
   dim3 block(16, 16);
   dim3 grid(
     (M + block.x - 1) / block.x,
@@ -275,6 +332,7 @@ cudaError_t ReferenceGemm(
   );
 
   ReferenceGemm_kernel<<< grid, block >>>(M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
+  */
 
   return cudaGetLastError();
 }
@@ -458,7 +516,7 @@ int main(int argc, const char *arg[]) {
   //
 
   // GEMM problem dimensions.
-  int problem[3] = { 128, 128, 128 };
+  int problem[3] = { 128, 150000, 256 };
 
   for (int i = 1; i < argc && i < 4; ++i) {
     std::stringstream ss(arg[i]);
