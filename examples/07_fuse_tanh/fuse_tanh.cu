@@ -452,12 +452,10 @@ cudaError_t TestCutlassGemm(int M, int N, int K, float alpha, float beta) {
   //
 
   result = CutlassSgemmNN<cutlass::Shape<8, 128, 128>, cutlass::Shape<8, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
-  result = CutlassSgemmNN<cutlass::Shape<8,  64, 128>, cutlass::Shape<8, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
-  result = CutlassSgemmNN<cutlass::Shape<8,  64, 128>, cutlass::Shape<4, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
-  result = CutlassSgemmNN<cutlass::Shape<4,  64, 128>, cutlass::Shape<4, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
-  result = CutlassSgemmNN<cutlass::Shape<4,  32, 128>, cutlass::Shape<4, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
-  result = CutlassSgemmNN<cutlass::Shape<4,  32, 128>, cutlass::Shape<4, 4, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
-  result = CutlassSgemmNN<cutlass::Shape<4,  64,  64>, cutlass::Shape<4, 4, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);  
+  result = CutlassSgemmNN<cutlass::Shape<8, 128,  64>, cutlass::Shape<8, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<8, 128,  64>, cutlass::Shape<8, 8, 4> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<8, 128,  32>, cutlass::Shape<8, 4, 4> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
+  result = CutlassSgemmNN<cutlass::Shape<8,  64,  64>, cutlass::Shape<8, 4, 4> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
 
   if (result != cudaSuccess) {
     std::cerr << "CUTLASS GEMM kernel failed: "
@@ -559,7 +557,7 @@ int main(int argc, const char *arg[]) {
   //
 
   // GEMM problem dimensions.
-  int problem[3] = { 128, 150000, 256 };
+  int problem[3] = { 150000, 128, 256 };
 
   for (int i = 1; i < argc && i < 4; ++i) {
     std::stringstream ss(arg[i]);
