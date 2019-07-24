@@ -458,6 +458,7 @@ cudaError_t TestCutlassGemm(int M, int N, int K, float alpha, float beta) {
   result = CutlassSgemmNN<cutlass::Shape<4,  32, 128>, cutlass::Shape<4, 8, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
   result = CutlassSgemmNN<cutlass::Shape<4,  32, 128>, cutlass::Shape<4, 4, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
   result = CutlassSgemmNN<cutlass::Shape<4,  64,  64>, cutlass::Shape<4, 4, 8> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);  
+  result = CutlassSgemmNN<cutlass::Shape<16, 64,  64>, cutlass::Shape<16, 4, 4> >(M, N, K, alpha, A, lda, B, ldb, beta, C_cutlass, ldc);
 
   if (result != cudaSuccess) {
     std::cerr << "CUTLASS GEMM kernel failed: "
